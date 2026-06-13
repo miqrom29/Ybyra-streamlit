@@ -210,8 +210,11 @@ with st.sidebar:
     col2.metric("Conda",     "âœ…" if cnd_ok else "âŒ")
     st.metric("ybyra repo", "âœ… Found" if yby_ok else "âŒ Not found", label_visibility="visible")
 
-    if not yby_ok:
-        st.info("Clone ybyra:
+        if not yby_ok:
+        st.info("""Clone ybyra:
+```bash
+git clone https://github.com/tpinotti/ybyra
+```""")
 ```
 git clone https://github.com/tpinotti/ybyra
 ```")
