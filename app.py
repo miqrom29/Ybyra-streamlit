@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Custom CSS ────────────────────────────────────────────────────────────────
+# ── Custom CSS ──────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap');
@@ -121,7 +121,7 @@ hr { border-color: var(--border) !important; margin: 1.25rem 0; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── State init ────────────────────────────────────────────────────────────────
+# ── State init ──────────────────────────────────────────────────────────────
 for key, default in {
     "log_lines": [],
     "run_status": "idle",   # idle | running | done | error
@@ -132,7 +132,7 @@ for key, default in {
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers ──────────────────────────────────────────────────────────────────
 def snakemake_installed():
     return shutil.which("snakemake") is not None
 
@@ -190,7 +190,7 @@ def parse_results_tsv(outdir):
             pass
     return rows
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+# ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 🧬 ybyra GUI")
     st.caption("Y-chromosome haplogroup calling · Snakemake workflow")
@@ -208,10 +208,10 @@ with st.sidebar:
     st.metric("ybyra repo", "✅ Found" if yby_ok else "❌ Not found", label_visibility="visible")
 
     if not yby_ok:
-        st.info("Clone ybyra:
+        st.info("""Clone ybyra:
 ```bash
 git clone https://github.com/tpinotti/ybyra
-```")
+```""")
 
     st.divider()
 
@@ -225,7 +225,7 @@ git clone https://github.com/tpinotti/ybyra
     st.divider()
     st.caption(f"Session: {datetime.now():%Y-%m-%d %H:%M}")
 
-# ── Main layout ───────────────────────────────────────────────────────────────
+# ── Main layout ──────────────────────────────────────────────────────────────
 st.markdown("# 🧬 ybyra · Graphical Interface")
 st.markdown(
     "Automated **Y-chromosome haplogroup assignment** using a tree-based scoring method. "
@@ -235,7 +235,7 @@ st.markdown(
 
 tab_config, tab_run, tab_results = st.tabs(["⚙️ Configuration", "▶️ Run", "📊 Results"])
 
-# ═══════════════════════════════ TAB 1 — CONFIG ═══════════════════════════════
+# ═══════════════════════════════ TAB 1 — CONFIG ═════════════════════════════
 with tab_config:
     st.markdown('<div class="card"><div class="card-title">Reference & Phylotree</div>', unsafe_allow_html=True)
     col_a, col_b = st.columns(2)
@@ -263,8 +263,7 @@ with tab_config:
         st.caption("Enter one sample per line: `sample_name  /path/to/file.bam`")
         raw_text = st.text_area(
             "Samples",
-            value="sample_A\tdata/sample_A.bam
-sample_B\tdata/sample_B.bam",
+            value="sample_A\tdata/sample_A.bam\nsample_B\tdata/sample_B.bam",
             height=140,
             label_visibility="collapsed",
         )
@@ -283,4 +282,139 @@ sample_B\tdata/sample_B.bam",
             upload_dir = Path("ybyra_uploads")
             for ub in uploaded_bams:
                 saved = save_uploaded_file(ub, upload_dir)
-                if ub.
+                if ub.name.endswith(('.bam', '.cram')):
+                    samples_dict[ub.name.split('.')[0]] = saved
+
+    elif method == "Upload sample TSV":
+        uploaded_tsv = st.file_uploader(
+            "Upload sample TSV (sample_name \\t /path/to/file.bam)",
+            type=["tsv", "txt"],
+            accept_multiple_files=False,
+        )
+        if uploaded_tsv:
+            saved = save_uploaded_file(uploaded_tsv, "ybyra_uploads")
+            with open(saved) as fh:
+                for line in fh:
+                    parts = line.strip().split('\t')
+                    if len(parts) >= 2:
+                        samples_dict[parts[0]] = parts[1]
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div class="card"><div class="card-title">Analysis Settings</div>', unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        min_snps = st.number_input("Minimum SNPs for haplogroup call", min_value=1, value=10)
+    with col2:
+        outdir = st.text_input(
+            "Output directory",
+            value="ybyra_results",
+            help="Path where results will be saved.",
+        )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if st.button("💾 Save Configuration", use_container_width=True):
+        config = build_config(samples_dict, ref_path, phylotree_path, min_snps, outdir)
+        config_file = Path(outdir) / "config.yaml"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(config_file, 'w') as f:
+            yaml.dump(config, f)
+        st.success(f"Configuration saved to {config_file}")
+
+# ═══════════════════════════════ TAB 2 — RUN ═══════════════════════════════
+with tab_run:
+    st.markdown('<div class="card"><div class="card-title">Snakemake Execution</div>', unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        run_btn = st.button("▶️ Run Workflow", use_container_width=True)
+    with col2:
+        pause_btn = st.button("⏸ Pause", use_container_width=True, disabled=(st.session_state.run_status != "running"))
+    with col3:
+        stop_btn = st.button("⏹ Stop", use_container_width=True, disabled=(st.session_state.run_status != "running"))
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="card"><div class="card-title">Status</div>', unsafe_allow_html=True)
+    status_col1, status_col2 = st.columns([3, 1])
+    with status_col1:
+        st.write("**Current Status:**")
+    with status_col2:
+        st.markdown(status_badge(st.session_state.run_status), unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="log-box">', unsafe_allow_html=True)
+    log_container = st.empty()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if run_btn:
+        if not ybyra_cloned():
+            st.error("❌ ybyra repository not found. Please clone it first.")
+        else:
+            st.session_state.run_status = "running"
+            st.session_state.log_lines = []
+
+            try:
+                cmd = [
+                    "snakemake",
+                    f"--cores={cores}",
+                    "--snakefile=ybyra/Snakefile",
+                ]
+                if use_conda:
+                    cmd.append("--use-conda")
+                if dry_run:
+                    cmd.append("-n")
+                if forceall:
+                    cmd.append("--forceall")
+
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+
+                thread = threading.Thread(target=stream_process, args=(proc, st.session_state.log_lines))
+                thread.start()
+                thread.join()
+
+                st.session_state.run_status = "done"
+                st.success("✅ Workflow completed successfully!")
+
+            except Exception as e:
+                st.session_state.run_status = "error"
+                st.session_state.log_lines.append(f"Error: {str(e)}")
+                st.error(f"❌ Workflow failed: {str(e)}")
+
+# ═══════════════════════════════ TAB 3 — RESULTS ════════════════════════════
+with tab_results:
+    st.markdown('<div class="card"><div class="card-title">Analysis Results</div>', unsafe_allow_html=True)
+
+    results_dir = Path("ybyra_results")
+    if results_dir.exists():
+        rows = parse_results_tsv(str(results_dir))
+        if rows:
+            st.dataframe(rows, use_container_width=True)
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📥 Download Results (ZIP)", use_container_width=True):
+                    zip_buf = zip_results(str(results_dir))
+                    st.download_button(
+                        label="Click to download",
+                        data=zip_buf,
+                        file_name="ybyra_results.zip",
+                        mime="application/zip"
+                    )
+            with col2:
+                if st.button("🔄 Clear Results", use_container_width=True):
+                    shutil.rmtree(results_dir)
+                    st.success("Results cleared.")
+                    st.rerun()
+        else:
+            st.info("No results found. Run the workflow to generate results.")
+    else:
+        st.info("No results directory found. Run the workflow to generate results.")
+
+    st.markdown('</div>', unsafe_allow_html=True)
