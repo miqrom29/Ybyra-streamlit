@@ -351,11 +351,11 @@ with tab_run:
 
     # RUN logic
     if run_btn:
-        if not ybyra_cloned():
-            st.error("âŒ ybyra repository not found. Clone it first:
-```
+                if not ybyra_cloned():
+            st.error("""❌ ybyra repository not found. Clone it first:
+```bash
 git clone https://github.com/tpinotti/ybyra
-```")
+```""")
         else:
             st.session_state["log_lines"] = []
             st.session_state["run_status"] = "running"
