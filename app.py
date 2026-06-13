@@ -215,9 +215,6 @@ with st.sidebar:
 ```bash
 git clone https://github.com/tpinotti/ybyra
 ```""")
-```
-git clone https://github.com/tpinotti/ybyra
-```")
 
     st.divider()
 
